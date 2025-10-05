@@ -1,0 +1,508 @@
+@@ -0,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIFAR-10 图像分类器</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 50%, #667eea 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding: 20px 0;
+        }
+
+        .card {
+            border: none;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.12);
+            backdrop-filter: blur(12px);
+            background: rgba(255,255,255,0.98);
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 25px 45px rgba(0,0,0,0.15);
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 18px;
+            padding: 3.5rem 2rem;
+            text-align: center;
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            cursor: pointer;
+            background: linear-gradient(145deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(
+                to right,
+                rgba(255,255,255,0) 0%,
+                rgba(255,255,255,0.1) 50%,
+                rgba(255,255,255,0) 100%
+            );
+            transform: rotate(30deg);
+            transition: all 0.6s ease;
+        }
+
+        .upload-area:hover {
+            background: linear-gradient(145deg, rgba(102, 126, 234, 0.12), rgba(118, 75, 162, 0.12));
+            border-color: #764ba2;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.15);
+        }
+
+        .upload-area:hover::before {
+            left: 150%;
+        }
+
+        .upload-area.dragover {
+            background: linear-gradient(145deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+            border-color: #764ba2;
+            transform: scale(1.02);
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.25);
+        }
+
+        .result-image {
+            /* 关键修改：提高最小宽度，放宽最大宽度限制 */
+            min-width: 280px;    /* 确保小屏幕下图片不会过小 */
+            max-width: 90%;      /* 相对于容器宽度，留少量边距更美观 */
+            max-height: 400px;   /* 限制最大高度，避免超出屏幕 */
+            width: auto;         /* 保持宽高比 */
+            height: auto;        /* 保持宽高比 */
+            border-radius: 18px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+            transition: transform 0.5s ease, box-shadow 0.5s ease;
+            border: 1px solid rgba(220, 220, 220, 0.3);
+            margin: 0 auto;      /* 确保图片水平居中 */
+        }
+
+        .result-image:hover {
+            transform: scale(1.02);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+        }
+
+        .probability-bar {
+            height: 28px;
+            background: linear-gradient(145deg, #f0f2f5, #e5e7eb);
+            border-radius: 14px;
+            overflow: hidden;
+            margin-bottom: 12px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .probability-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #6b48ff 100%);
+            transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+            border-radius: 14px;
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.4);
+            position: relative;
+        }
+
+        .probability-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                to right,
+                rgba(255,255,255,0.2) 0%,
+                rgba(255,255,255,0) 100%
+            );
+            animation: shine 2s infinite;
+        }
+
+        @keyframes shine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .prediction-item {
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            border-radius: 12px;
+            background: linear-gradient(145deg, #f8f9fa, #f0f2f5);
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+
+        .prediction-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            background: linear-gradient(145deg, #ffffff, #f5f7fa);
+        }
+
+        .main-prediction {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: black;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .main-prediction::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 120px;
+            height: 120px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            transform: translate(40%, -40%);
+        }
+
+        .class-badge {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 24px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .class-badge:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+            color: white;
+        }
+
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 3rem;
+            background: rgba(255,255,255,0.5);
+            border-radius: 18px;
+            margin-bottom: 1rem;
+        }
+
+        .spinner-border {
+            width: 4rem;
+            height: 4rem;
+            border-width: 0.5rem;
+            border-color: #667eea rgba(255,255,255,0.5) #667eea rgba(255,255,255,0.5);
+            animation: spinner 1.2s linear infinite;
+        }
+
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #initialPrompt {
+            padding: 3rem;
+            background: linear-gradient(145deg, rgba(255,255,255,0.5), rgba(255,255,255,0.3));
+            border-radius: 18px;
+            transition: all 0.5s ease;
+        }
+
+        #initialPrompt i {
+            transition: transform 0.5s ease;
+        }
+
+        #initialPrompt:hover i {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 50px;
+            padding: 10px 30px;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5a6edb, #6a428f);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        h1.display-4 {
+            background: linear-gradient(135deg, #ffffff, #e0e7ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        }
+
+        @media (max-width: 768px) {
+            .card {
+                border-radius: 20px;
+            }
+
+            .upload-area {
+                padding: 2.5rem 1.5rem;
+                margin-bottom: 2rem;
+            }
+
+            .loading-spinner, #initialPrompt {
+                padding: 2rem 1rem;
+            }
+
+            .spinner-border {
+                width: 3rem;
+                height: 3rem;
+                border-width: 0.4rem;
+            }
+        }
+
+        .footer-text {
+            background: rgba(0,0,0,0.1);
+            padding: 15px 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(8px);
+            transition: all 0.3s ease;
+        }
+
+        .footer-text:hover {
+            background: rgba(0,0,0,0.15);
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10 col-xl-8">
+                <!-- 标题区域 -->
+                <div class="text-center mb-6">
+                    <div class="d-inline-block mb-3 p-3 bg-white/10 rounded-full backdrop-blur-sm">
+                        <i class="fas fa-robot fa-3x text-white" style="text-shadow: 0 3px 10px rgba(0,0,0,0.2);"></i>
+                    </div>
+                    <h1 class="display-4 fw-bold mb-3">CIFAR-10 图像分类器</h1>
+                    <p class="lead text-white opacity-90 max-w-2xl mx-auto">
+                        上传图片，AI模型将精准识别图像属于CIFAR-10数据集中的10个类别之一
+                    </p>
+                </div>
+
+                <!-- 主要内容卡片 -->
+                <div class="card p-5 mb-6">
+                    <div class="row">
+                        <!-- 左侧上传区域 -->
+                        <div class="col-md-6">
+                            <div class="upload-area" id="uploadArea">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-4"></i>
+                                <h4 class="mb-3 text-dark">上传图片</h4>
+                                <p class="text-muted mb-4">
+                                    支持 JPG, PNG, JPEG 格式<br>
+                                    最大文件大小: 16MB
+                                </p>
+                                <button class="btn btn-primary btn-lg">
+                                    <i class="fas fa-folder-open me-2"></i>选择文件
+                                </button>
+                                <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                                <p class="mt-4 text-muted">或者拖拽文件到此处</p>
+                            </div>
+
+                            <!-- 类别说明 -->
+                            <div class="mt-5 p-4 bg-white/50 rounded-18 border border-white/20">
+                                <h6 class="fw-bold mb-3 text-dark">可识别类别：</h6>
+                                <div class="d-flex flex-wrap gap-2 justify-content-center">
+                                    {% for class_name in ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck'] %}
+                                        <span class="class-badge">{{ class_name }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 右侧结果区域 -->
+                        <div class="col-md-6">
+                            <div id="resultsSection" style="display: none;">
+                                <!-- 图片显示 -->
+                                <div class="text-center mb-5">
+                                    <h5 class="text-dark mb-3">上传图片预览</h5>
+                                    <img id="resultImage" class="result-image" alt="预测图片" loading="lazy">
+                                </div>
+
+                                <!-- 主要预测结果 -->
+                                <div class="main-prediction prediction-item text-center p-5 mb-5">
+                                    <h4 id="mainPrediction" class="fw-bold mb-3">预测结果</h4>
+                                    <div class="probability-bar">
+                                        <div id="mainProbability" class="probability-fill"></div>
+                                    </div>
+                                    <span id="mainPercentage" class="fw-bold text-black"></span>
+                                </div>
+
+                                <!-- 其他预测结果 -->
+                                <h6 class="fw-bold mb-3 text-dark">其他可能类别：</h6>
+                                <div id="otherPredictions"></div>
+                            </div>
+
+                            <!-- 加载动画 -->
+                            <div id="loadingSpinner" class="loading-spinner">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                                <p class="mt-2 text-muted">AI正在分析图片...</p>
+                            </div>
+
+                            <!-- 初始提示 -->
+                            <div id="initialPrompt" class="text-center text-muted py-5">
+                                <i class="fas fa-image fa-3x mb-3 opacity-50"></i>
+                                <p>上传图片查看预测结果</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 页脚信息 -->
+                <div class="text-center text-white opacity-75 footer-text">
+                    <p>基于TensorFlow和Flask构建 | CIFAR-10数据集</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('fileInput');
+            const uploadArea = document.getElementById('uploadArea');
+            const resultsSection = document.getElementById('resultsSection');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const initialPrompt = document.getElementById('initialPrompt');
+            const resultImage = document.getElementById('resultImage');
+            const mainPrediction = document.getElementById('mainPrediction');
+            const mainProbability = document.getElementById('mainProbability');
+            const mainPercentage = document.getElementById('mainPercentage');
+            const otherPredictions = document.getElementById('otherPredictions');
+
+            // 点击上传区域触发文件选择
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            // 拖拽功能
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFile(files[0]);
+                }
+            });
+
+            // 文件选择变化
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFile(e.target.files[0]);
+                }
+            });
+
+            function handleFile(file) {
+                // 验证文件类型
+                const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+                if (!allowedTypes.includes(file.type)) {
+                    alert('请上传图片文件 (JPEG, PNG, GIF)');
+                    return;
+                }
+
+                // 验证文件大小
+                if (file.size > 16 * 1024 * 1024) {
+                    alert('文件大小不能超过16MB');
+                    return;
+                }
+
+                // 显示加载动画
+                loadingSpinner.style.display = 'block';
+                resultsSection.style.display = 'none';
+                initialPrompt.style.display = 'none';
+
+                // 创建FormData并发送请求
+                const formData = new FormData();
+                formData.append('file', file);
+
+                fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loadingSpinner.style.display = 'none';
+
+                    if (data.success) {
+                        displayResults(data);
+                    } else {
+                        alert('预测失败: ' + data.error);
+                        initialPrompt.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    loadingSpinner.style.display = 'none';
+                    alert('发生错误: ' + error);
+                    initialPrompt.style.display = 'block';
+                });
+            }
+
+            function displayResults(data) {
+                // 1. 显示图片（原有逻辑不变）
+                resultImage.style.opacity = '0';
+                resultImage.style.transform = 'scale(0.95)';
+                resultImage.src = data.image_data;
+
+                resultImage.onload = function() {
+                    resultImage.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+                    resultImage.style.opacity = '1';
+                    resultImage.style.transform = 'scale(1)';
+                };
+
+                // 2. 显示主要预测结果（第1名，原有逻辑不变）
+                const mainPred = data.main_prediction;
+                mainPrediction.textContent = `预测结果：${mainPred.class_name}`;  // 可加文字提示更清晰
+                mainProbability.style.width = mainPred.probability + '%';
+                mainPercentage.textContent = `置信度：${mainPred.probability.toFixed(2)}%`;  // 加“置信度”提示
+
+                // 3. 显示其他预测结果（只渲染第2名和第3名，关键修改）
+                otherPredictions.innerHTML = '';
+                // 从Top3结果中跳过第1名，取第2、3名（data.predictions是Top3数组）
+                data.predictions.slice(1).forEach((pred, index) => {
+                    // 给第2、3名加“第X名”标识
+                    const rankText = index === 0 ? '第2名' : '第3名';
+                    const predElement = document.createElement('div');
+                    predElement.className = 'prediction-item';
+                    predElement.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">${rankText}：${pred.class_name}</span>
+                            <span>${pred.probability.toFixed(2)}%</span>
+                        </div>
+                        <div class="probability-bar">
+                            <div class="probability-fill" style="width: ${pred.probability}%"></div>
+                        </div>
+                    `;
+                    otherPredictions.appendChild(predElement);
+                });
+
+                // 显示结果区域（原有逻辑不变）
+                resultsSection.style.display = 'block';
+                resultsSection.classList.add('text-black');
+            }
+        });
+    </script>
+</body>
+</html>
