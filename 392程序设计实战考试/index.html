@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>招聘数据分析工具</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 20px;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    button {
+      margin-top: 10px;
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    input[type="file"] {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>📊 招聘数据分析工具</h1>
+
+  <!-- 任务1：薪资分析 -->
+  <div class="card">
+    <h2>1. 按地区统计薪资</h2>
+    <p>上传包含 <code>district</code> 和 <code>salary</code> 列的 CSV 文件</p>
+    <input type="file" id="salaryFile" accept=".csv" />
+    <br />
+    <button onclick="uploadSalary()">开始分析并下载 Excel</button>
+  </div>
+
+  <!-- 任务2：公司数量柱状图 -->
+  <div class="card">
+    <h2>2. 按地区统计公司数量</h2>
+    <p>上传包含 <code>district</code> 和 <code>company</code> 列的 CSV 文件</p>
+    <input type="file" id="companyFile" accept=".csv" />
+    <br />
+    <button onclick="uploadCompanyChart()">生成柱状图并下载 PNG</button>
+  </div>
+
+  <script>
+    // 任务1：上传薪资数据
+    async function uploadSalary() {
+      const fileInput = document.getElementById('salaryFile');
+      const file = fileInput.files[0];
+      if (!file) {
+        alert("请先选择一个 CSV 文件！");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const response = await fetch("http://127.0.0.1:8000/analyze/salary_by_district", {
+          method: "POST",
+          body: formData
+        });
+
+        if (response.ok) {
+          // 触发文件下载
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = "薪资统计.xlsx";
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        } else {
+          alert("分析失败，请检查 CSV 格式！");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("请求出错：" + err.message);
+      }
+    }
+
+    // 任务2：上传公司数据
+    async function uploadCompanyChart() {
+      const fileInput = document.getElementById('companyFile');
+      const file = fileInput.files[0];
+      if (!file) {
+        alert("请先选择一个 CSV 文件！");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const response = await fetch("http://127.0.0.1:8000/analyze/company_count_chart", {
+          method: "POST",
+          body: formData
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = "公司数量柱状图.png";
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        } else {
+          alert("绘图失败，请检查 CSV 格式！");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("请求出错：" + err.message);
+      }
+    }
+  </script>
+
+</body>
+</html>
